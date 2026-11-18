@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Soundwave Audio Player</title>
+  <style>
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:linear-gradient(145deg,#17162b,#0d0e16 65%);color:#f7f5ff;font:15px system-ui,sans-serif}.app{width:min(900px,100%)}header{display:flex;align-items:center;gap:12px;margin:0 0 20px}.logo{width:42px;height:42px;border-radius:14px;display:grid;place-items:center;background:#8b5cf6;font-size:23px}h1{font-size:19px;margin:0}header p{font-size:12px;color:#a6a4b7;margin:3px 0 0}.columns{display:grid;grid-template-columns:1fr 290px;gap:16px}.panel{background:#191a26;border:1px solid #ffffff13;border-radius:20px;box-shadow:0 20px 60px #0005}.player{padding:24px}.art{height:205px;border-radius:14px;display:grid;place-items:center;background:radial-gradient(circle,#6555a3,#292443 65%,#1d1b2c);font-size:60px;color:#ded1ff}.details{margin:20px 0 15px}.details h2{font-size:19px;margin:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.details p{font-size:12px;color:#aaa8b8;margin:5px 0}.timeline{display:flex;gap:10px;align-items:center;color:#aaa8b8;font-size:11px}input[type=range]{accent-color:#a47aff;cursor:pointer}#seek{width:100%;height:4px}.controls{display:flex;align-items:center;justify-content:center;gap:18px;margin-top:16px}.controls button{border:0;background:transparent;color:#dedbea;border-radius:50%;width:40px;height:40px;font-size:22px;cursor:pointer}.controls button:hover{background:#ffffff12}.controls .primary{width:54px;height:54px;background:#8b5cf6;color:white;font-size:25px}.volume{margin-left:auto;display:flex;align-items:center;gap:8px;color:#aaa8b8}.volume input{width:75px}.side{padding:20px}.sidehead{display:flex;justify-content:space-between;align-items:center;margin-bottom:15px}.side h3{margin:0;font-size:14px}.count{font-size:11px;color:#aaa8b8}.drop{padding:18px 10px;text-align:center;border:1px dashed #ffffff35;border-radius:13px;background:#ffffff04}.drop strong{font-size:12px}.drop p{margin:5px 0 12px;color:#aaa8b8;font-size:11px}.choose{background:#ffffff10;border:1px solid #ffffff24;color:white;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:11px}#files{display:none}.list{display:grid;gap:5px;max-height:280px;overflow:auto;margin-top:14px}.empty{text-align:center;padding:16px 0;color:#858394;font-size:11px}.row{display:flex;align-items:center;gap:9px;padding:9px;border-radius:10px;cursor:pointer}.row:hover,.row.active{background:#9b6aff1c}.note{font-size:10px;color:#858394;line-height:1.5;margin:12px 0 0}audio{display:none}@media(max-width:680px){body{padding:16px}.columns{grid-template-columns:1fr}.player{padding:17px}.art{height:170px}.side{padding:17px}.volume input{width:55px}}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header><div class="logo">♫</div><div><h1>Soundwave</h1><p>Your music, in one place</p></div></header>
+    <div class="columns">
+      <section class="panel player" aria-label="Audio player">
+        <div class="art" aria-hidden="true">♫</div>
+        <div class="details"><h2 id="title">Nothing playing</h2><p id="subtitle">Choose a file to get started</p></div>
+        <div class="timeline"><span id="elapsed">0:00</span><input id="seek" type="range" min="0" max="1000" value="0" aria-label="Seek" disabled><span id="length">0:00</span></div>
+        <div class="controls"><button id="prev" aria-label="Previous track">|◀</button><button class="primary" id="toggle" aria-label="Play">▶</button><button id="next" aria-label="Next track">▶|</button><label class="volume" aria-label="Volume">🔊 <input id="volume" type="range" min="0" max="1" step=".01" value=".8"></label></div>
+        <audio id="audio" preload="metadata"></audio>
+      </section>
+      <aside class="panel side">
+        <div class="sidehead"><h3>Up next</h3><span class="count" id="count">0 tracks</span></div>
+        <div class="drop" id="drop"><strong>Drop audio files here</strong><p>MP3, MP4, M4A, WAV, OGG and more</p><button class="choose" id="choose">Choose files</button><input id="files" type="file" accept="audio/*,video/mp4,.mp3,.mp4,.m4a,.wav,.ogg,.aac,.flac,.webm" multiple></div>
+        <div class="list" id="list"><div class="empty">Your playlist is empty</div></div>
+        <p class="note">MP4 files play their audio track when supported by your browser. Files stay on your device.</p>
+      </aside>
+    </div>
+  </main>
+  <script>
+    const audio=document.querySelector('#audio'), fileInput=document.querySelector('#files'), list=document.querySelector('#list');
+    const tracks=[]; let current=-1;
+    const time=s=>Number.isFinite(s)?`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`:'0:00';
+    function render(){
+      list.replaceChildren(); document.querySelector('#count').textContent=`${tracks.length} ${tracks.length===1?'track':'tracks'}`;
+      if(!tracks.length){const empty=document.createElement('div');empty.className='empty';empty.textContent='Your playlist is empty';list.append(empty);return}
+      tracks.forEach((track,i)=>{const row=document.createElement('div');row.className=`row${i===current?' active':''}`;row.tabIndex=0;row.setAttribute('role','button');row.textContent=`♫  ${track.name}`;row.title=track.name;row.addEventListener('click',()=>play(i));row.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();play(i)}});list.append(row)});
+    }
+    function add(files){[...files].filter(f=>f.type.startsWith('audio/')||f.type==='video/mp4'||/\.(mp3|mp4|m4a|wav|ogg|aac|flac|webm)$/i.test(f.name)).forEach(file=>tracks.push({file,name:file.name.replace(/\.[^.]+$/,''),url:URL.createObjectURL(file)}));render();if(current<0&&tracks.length)play(0)}
+    function play(i){if(i<0||i>=tracks.length)return;current=i;audio.src=tracks[i].url;document.querySelector('#title').textContent=tracks[i].name;document.querySelector('#subtitle').textContent=tracks[i].file.name;document.querySelector('#seek').disabled=false;render();audio.play().catch(()=>{});}
+    function updateButton(){const playing=!audio.paused;document.querySelector('#toggle').textContent=playing?'Ⅱ':'▶';document.querySelector('#toggle').setAttribute('aria-label',playing?'Pause':'Play')}
+    document.querySelector('#choose').onclick=()=>fileInput.click();
+    fileInput.onchange=()=>{add(fileInput.files);fileInput.value=''};
+    const drop=document.querySelector('#drop');
+    drop.addEventListener('dragover',e=>{e.preventDefault();drop.style.borderColor='#a47aff'});
+    drop.addEventListener('dragleave',()=>drop.style.borderColor='');
+    drop.addEventListener('drop',e=>{e.preventDefault();drop.style.borderColor='';add(e.dataTransfer.files)});
+    document.querySelector('#toggle').onclick=()=>{if(current<0){if(tracks.length)play(0)}else if(audio.paused)audio.play().catch(()=>{});else audio.pause()};
+    document.querySelector('#prev').onclick=()=>{if(tracks.length)play((current-1+tracks.length)%tracks.length)};
+    document.querySelector('#next').onclick=()=>{if(tracks.length)play((current+1)%tracks.length)};
+    document.querySelector('#volume').oninput=e=>audio.volume=Number(e.target.value);
+    document.querySelector('#seek').oninput=e=>{if(Number.isFinite(audio.duration))audio.currentTime=audio.duration*Number(e.target.value)/1000};
+    audio.volume=.8;audio.addEventListener('play',updateButton);audio.addEventListener('pause',updateButton);
+    audio.addEventListener('timeupdate',()=>{document.querySelector('#elapsed').textContent=time(audio.currentTime);if(Number.isFinite(audio.duration))document.querySelector('#seek').value=audio.currentTime/audio.duration*1000});
+    audio.addEventListener('loadedmetadata',()=>document.querySelector('#length').textContent=time(audio.duration));
+    audio.addEventListener('ended',()=>{if(tracks.length>1)play((current+1)%tracks.length);else updateButton()});
+    audio.addEventListener('error',()=>{if(current>=0)document.querySelector('#subtitle').textContent='This format may not be supported by your browser'});
+  </script>
+</body>
+</html>
