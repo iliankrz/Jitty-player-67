@@ -1,1 +1,156 @@
-plssss
+"""Musikafspiller: Installer pygame med python -m pip install pygame.
+
+Start med: python musikafspiller.py
+"""
+
+from pathlib import Path
+import tkinter as tk
+from tkinter import filedialog, messagebox, ttk
+
+try:
+    import pygame
+except ImportError:
+    raise SystemExit("Installer først pygame: python -m pip install pygame")
+
+
+class Musikafspiller:
+    def __init__(self, root):
+        self.root = root
+        self.sange = []
+        self.aktiv = None
+        self.tilstand = "stoppet"
+
+        root.title("Vores musikafspiller")
+        root.geometry("650x420")
+        root.minsize(560, 360)
+        root.protocol("WM_DELETE_WINDOW", self.luk)
+
+        ramme = ttk.Frame(root, padding=20)
+        ramme.pack(fill="both", expand=True)
+        ttk.Label(ramme, text="Musikafspiller", font=("Arial", 22, "bold")).pack(anchor="w")
+        ttk.Button(ramme, text="Tilføj musikfiler", command=self.tilfoej).pack(anchor="w", pady=10)
+
+        liste_ramme = ttk.Frame(ramme)
+        liste_ramme.pack(fill="both", expand=True)
+        self.liste = tk.Listbox(liste_ramme, exportselection=False, height=8)
+        scrollbar = ttk.Scrollbar(liste_ramme, command=self.liste.yview)
+        self.liste.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+        self.liste.pack(side="left", fill="both", expand=True)
+        self.liste.bind("<Double-Button-1>", lambda event: self.afspil())
+
+        self.status = tk.StringVar(value="Tilføj en MP3-, WAV- eller OGG-fil.")
+        ttk.Label(ramme, textvariable=self.status, wraplength=500).pack(anchor="w", pady=10)
+
+        knapper = ttk.Frame(ramme)
+        knapper.pack(fill="x")
+        for tekst, funktion in [
+            ("Forrige", lambda: self.skift(-1)),
+            ("Afspil", self.afspil),
+            ("Pause / fortsæt", self.pause),
+            ("Stop", self.stop),
+            ("Næste", lambda: self.skift(1)),
+        ]:
+            ttk.Button(knapper, text=tekst, command=funktion).pack(side="left", padx=2)
+
+        ttk.Label(ramme, text="Lydstyrke").pack(anchor="w", pady=(12, 0))
+        self.lydstyrke = tk.DoubleVar(value=50)
+        ttk.Scale(ramme, from_=0, to=100, variable=self.lydstyrke,
+                  command=lambda value: pygame.mixer.music.set_volume(float(value) / 100)).pack(fill="x")
+        pygame.mixer.music.set_volume(0.5)
+        # after holder brugerfladen responsiv, mens vi tjekker sangens status.
+        self.timer = root.after(300, self.tjek_slut)
+
+    def tilfoej(self):
+        filer = filedialog.askopenfilenames(
+            title="Vælg musik",
+            filetypes=[("Musikfiler", "*.mp3 *.wav *.ogg"), ("Alle filer", "*.*")],
+        )
+        for fil in filer:
+            if fil not in self.sange:
+                self.sange.append(fil)
+                self.liste.insert(tk.END, Path(fil).name)
+        if self.sange and not self.liste.curselection():
+            self.liste.selection_set(0)
+
+    def afspil(self):
+        valg = self.liste.curselection()
+        if not valg:
+            messagebox.showinfo("Vælg musik", "Tilføj og vælg først en sang.")
+            return
+        self.start_sang(valg[0])
+
+    def start_sang(self, indeks):
+        self.tilstand = "stoppet"
+        pygame.mixer.music.stop()
+        try:
+            pygame.mixer.music.load(self.sange[indeks])
+            pygame.mixer.music.play()
+        except (pygame.error, OSError) as fejl:
+            self.status.set("Kunne ikke afspille filen.")
+            messagebox.showerror("Afspilningsfejl", str(fejl))
+            return
+        self.aktiv = indeks
+        self.tilstand = "afspiller"
+        self.liste.selection_clear(0, tk.END)
+        self.liste.selection_set(indeks)
+        self.liste.see(indeks)
+        self.status.set(f"Afspiller: {Path(self.sange[indeks]).name}")
+
+    def pause(self):
+        if self.tilstand == "afspiller":
+            pygame.mixer.music.pause()
+            self.tilstand = "pause"
+            self.status.set(f"Pause: {Path(self.sange[self.aktiv]).name}")
+        elif self.tilstand == "pause":
+            pygame.mixer.music.unpause()
+            self.tilstand = "afspiller"
+            self.status.set(f"Afspiller: {Path(self.sange[self.aktiv]).name}")
+
+    def stop(self):
+        pygame.mixer.music.stop()
+        self.tilstand = "stoppet"
+        self.status.set("Stoppet")
+
+    def skift(self, retning):
+        if not self.sange:
+            return
+        if self.aktiv is None:
+            valg = self.liste.curselection()
+            indeks = valg[0] if valg else 0
+        else:
+            indeks = (self.aktiv + retning) % len(self.sange)
+        self.start_sang(indeks)
+
+    def tjek_slut(self):
+        # get_busy er også False under pause, så tilstanden skal tjekkes først.
+        if self.tilstand == "afspiller" and not pygame.mixer.music.get_busy():
+            if self.aktiv + 1 < len(self.sange):
+                self.start_sang(self.aktiv + 1)
+            else:
+                self.tilstand = "stoppet"
+                self.status.set("Playlisten er færdig.")
+        self.timer = self.root.after(300, self.tjek_slut)
+
+    def luk(self):
+        self.root.after_cancel(self.timer)
+        pygame.mixer.quit()
+        self.root.destroy()
+
+
+def main():
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        pygame.mixer.init()
+    except pygame.error as fejl:
+        messagebox.showerror("Lydfejl", f"Kunne ikke starte lydsystemet:\n{fejl}", parent=root)
+        root.destroy()
+        return
+    Musikafspiller(root)
+    root.deiconify()
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    main()
